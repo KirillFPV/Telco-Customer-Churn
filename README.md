@@ -102,3 +102,377 @@
 
 Обученная модель CatBoost сохранена в файле `model.cbm` и может быть загружена для предсказаний на новых данных с аналогичной структурой признаков.
 
+## 🚀 Deploy модели
+
+### Структура проекта
+
+```
+app/
+├── app.py              # Основной FastAPI сервер
+├── data_pipeline.py    # Модуль предобработки данных
+├── model.cbm           # Обученная CatBoost модель
+├── requirements.txt    # Зависимости Python
+└── Dockerfile          # Конфигурация Docker контейнера
+```
+
+### API Endpoints
+
+#### 1. Проверка здоровья сервиса
+**GET** `/health`
+```bash
+curl http://localhost:8080/health
+```
+**Ответ:**
+```json
+{"status": "OK"}
+```
+
+#### 2. Статистика запросов
+**GET** `/stats`
+```bash
+curl http://localhost:8080/stats
+```
+**Ответ:**
+```json
+{"request_count": 42}
+```
+
+#### 3. Получение предсказания
+**POST** `/predict_model`
+
+**Пример запроса:**
+```bash
+curl -X POST "http://localhost:8080/predict_model" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "customerID": "12345",
+       "gender": "Female",
+       "SeniorCitizen": 0,
+       "Partner": "Yes",
+       "Dependents": "No",
+       "tenure": 12,
+       "PhoneService": "Yes",
+       "MultipleLines": "No",
+       "InternetService": "Fiber optic",
+       "OnlineSecurity": "No",
+       "OnlineBackup": "Yes",
+       "DeviceProtection": "No",
+       "TechSupport": "No",
+       "StreamingTV": "Yes",
+       "StreamingMovies": "No",
+       "Contract": "Month-to-month",
+       "PaperlessBilling": "Yes",
+       "PaymentMethod": "Electronic check",
+       "MonthlyCharges": 79.95,
+       "TotalCharges": "956.4"
+     }'
+```
+
+**Пример ответа:**
+```json
+{"prediction": "Churn"}
+```
+
+### Валидация входных данных
+
+API использует Pydantic для строгой валидации входных данных:
+
+| Поле | Тип | Ограничения |
+|------|-----|-------------|
+| customerID | string | Любая строка |
+| gender | string | "Male" или "Female" |
+| SeniorCitizen | integer | 0 или 1 |
+| Partner | string | "Yes" или "No" |
+| Dependents | string | "Yes" или "No" |
+| tenure | integer | 0-100 |
+| PhoneService | string | "Yes" или "No" |
+| MultipleLines | string | "Yes", "No" или "No phone service" |
+| InternetService | string | "DSL", "Fiber optic" или "No" |
+| OnlineSecurity | string | "Yes", "No" или "No internet service" |
+| OnlineBackup | string | "Yes", "No" или "No internet service" |
+| DeviceProtection | string | "Yes", "No" или "No internet service" |
+| TechSupport | string | "Yes", "No" или "No internet service" |
+| StreamingTV | string | "Yes", "No" или "No internet service" |
+| StreamingMovies | string | "Yes", "No" или "No internet service" |
+| Contract | string | "Month-to-month", "One year" или "Two year" |
+| PaperlessBilling | string | "Yes" или "No" |
+| PaymentMethod | string | "Electronic check", "Mailed check", "Bank transfer (automatic)" или "Credit card (automatic)" |
+| MonthlyCharges | float | ≥ 0 |
+| TotalCharges | string | Число в строковом формате |
+
+### Процесс деплоя
+
+#### 1. Подготовка файлов
+
+Убедитесь, что все необходимые файлы находятся в папке `app`:
+
+```bash
+ls app/
+# app.py
+# data_pipeline.py
+# model.cbm
+# requirements.txt
+# Dockerfile
+```
+
+#### 2. Сборка Docker образа
+
+```bash
+# Перейдите в директорию с проектом
+cd /path/to/project
+
+# Соберите Docker образ
+docker build -t fastapi-ml-app ./app
+
+# Проверьте созданный образ
+docker images | grep fastapi-ml-app
+```
+
+### 3. Запуск контейнера
+
+#### Локальный запуск:
+```bash
+docker run -d \
+  --name ml-app \
+  -p 8080:8080 \
+  fastapi-ml-app
+```
+
+#### Запуск с логированием:
+```bash
+docker run -d \
+  --name ml-app \
+  -p 8080:8080 \
+  --log-driver json-file \
+  --log-opt max-size=10m \
+  --log-opt max-file=3 \
+  fastapi-ml-app
+```
+
+#### Запуск с ограничением ресурсов:
+```bash
+docker run -d \
+  --name ml-app \
+  -p 8080:8080 \
+  --memory="512m" \
+  --cpus="1.0" \
+  fastapi-ml-app
+```
+
+### 4. Проверка работоспособности
+
+```bash
+# Проверка доступности
+curl http://localhost:8080/health
+
+# Тестовый запрос на предсказание
+curl -X POST "http://localhost:8080/predict_model" \
+     -H "Content-Type: application/json" \
+     -d '{"customerID":"test", "gender":"Female", "SeniorCitizen":0, "Partner":"Yes", "Dependents":"No", "tenure":12, "PhoneService":"Yes", "MultipleLines":"No", "InternetService":"Fiber optic", "OnlineSecurity":"No", "OnlineBackup":"Yes", "DeviceProtection":"No", "TechSupport":"No", "StreamingTV":"Yes", "StreamingMovies":"No", "Contract":"Month-to-month", "PaperlessBilling":"Yes", "PaymentMethod":"Electronic check", "MonthlyCharges":79.95, "TotalCharges":"956.4"}'
+```
+
+## Управление контейнером
+
+```bash
+# Просмотр логов
+docker logs ml-app
+
+# Просмотр логов в реальном времени
+docker logs -f ml-app
+
+# Остановка контейнера
+docker stop ml-app
+
+# Запуск остановленного контейнера
+docker start ml-app
+
+# Перезагрузка контейнера
+docker restart ml-app
+
+# Удаление контейнера
+docker rm -f ml-app
+
+# Просмотр потребления ресурсов
+docker stats ml-app
+```
+
+## Конфигурация Docker Compose (опционально)
+
+Создайте файл `docker-compose.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  ml-api:
+    build: ./app
+    container_name: ml-api
+    ports:
+      - "8080:8080"
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - ml-network
+
+networks:
+  ml-network:
+    driver: bridge
+```
+
+Запуск с Docker Compose:
+```bash
+docker-compose up -d
+docker-compose logs -f
+```
+
+## Мониторинг и логирование
+
+### Проверка метрик:
+```bash
+# Количество запросов
+curl http://localhost:8080/stats
+
+# Проверка состояния контейнера
+docker inspect ml-app --format='{{.State.Status}}'
+```
+
+### Просмотр логов:
+```bash
+# Все логи
+docker logs ml-app
+
+# Логи с фильтрацией
+docker logs ml-app | grep "ERROR"
+docker logs ml-app | grep "predict_model"
+```
+
+## Продвинутая конфигурация
+
+### Настройка переменных окружения:
+```bash
+docker run -d \
+  --name ml-app \
+  -p 8080:8080 \
+  -e WORKERS=4 \
+  -e LOG_LEVEL=info \
+  fastapi-ml-app
+```
+
+### Использование с reverse proxy (nginx):
+```nginx
+server {
+    listen 80;
+    server_name api.example.com;
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+## Устранение неполадок
+
+### 1. Контейнер не запускается
+```bash
+# Проверьте логи
+docker logs ml-app
+
+# Проверьте, занят ли порт
+netstat -tulpn | grep :8080
+
+# Попробуйте другой порт
+docker run -d -p 8081:8080 --name ml-app-test fastapi-ml-app
+```
+
+### 2. Ошибка загрузки модели
+```bash
+# Убедитесь, что model.cbm существует
+docker exec ml-app ls -la /app/model.cbm
+
+# Проверьте права доступа
+docker exec ml-app ls -la /app/
+```
+
+### 3. Ошибки зависимостей
+```bash
+# Пересоберите образ
+docker build --no-cache -t fastapi-ml-app ./app
+```
+
+## Рекомендации для продакшена
+
+1. **Используйте orchestration:**
+   ```bash
+   # Kubernetes
+   kubectl apply -f deployment.yaml
+   
+   # Docker Swarm
+   docker stack deploy -c docker-compose.yml ml-stack
+   ```
+
+2. **Настройте health checks:**
+   ```yaml
+   # В Docker Compose
+   healthcheck:
+     test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+     interval: 30s
+     timeout: 10s
+     retries: 3
+   ```
+
+3. **Реализуйте логирование в файл:**
+   ```python
+   # В app.py добавьте
+   import logging
+   logging.basicConfig(filename='/app/logs/app.log', level=logging.INFO)
+   ```
+
+4. **Настройте мониторинг:**
+   - Prometheus для метрик
+   - Grafana для визуализации
+   - ELK stack для логов
+
+## Производительность
+
+### Бенчмарк тестирование:
+```bash
+# Установите ab (Apache Benchmark)
+sudo apt-get install apache2-utils
+
+# Тест производительности
+ab -n 1000 -c 10 -p test_data.json -T application/json http://localhost:8080/predict_model
+```
+
+### Оптимизация:
+- Увеличьте количество workers Uvicorn
+- Настройте кэширование предсказаний
+- Используйте async/await для I/O операций
+
+## Безопасность
+
+1. **Добавьте аутентификацию:**
+   ```python
+   from fastapi.security import HTTPBearer
+   security = HTTPBearer()
+   ```
+
+2. **Используйте HTTPS:**
+   ```bash
+   # Генерация SSL сертификата
+   openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365
+   ```
+
+3. **Ограничьте rate limiting:**
+   ```python
+   from slowapi import Limiter, _rate_limit_exceeded_handler
+   from slowapi.util import get_remote_address
+   ```
+
+Теперь ваша ML модель готова к использованию через REST API! 🎉
+
